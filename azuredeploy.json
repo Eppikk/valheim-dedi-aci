@@ -1,0 +1,227 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "string",
+            "allowedValues": [
+                "westcentralus",
+                "westus",
+                "eastus",
+                "westeurope",
+                "westus2",
+                "northeurope",
+                "southeastasia",
+                "eastus2",
+                "centralus",
+                "australiaeast",
+                "uksouth",
+                "southcentralus",
+                "centralindia",
+                "brazilsouth",
+                "southindia",
+                "northcentralus",
+                "eastasia",
+                "canadacentral",
+                "japaneast",
+                "koreacentral",
+                "francecentral",
+                "switzerlandnorth",
+                "germanywestcentral",
+                "uaenorth"
+            ]
+        },
+        "containerName": {
+            "type": "string"
+        },
+        "imageName": {
+            "type": "string",
+            "defaultValue": "lloesche/valheim-server"
+        },
+        "osType": {
+            "type": "string",
+            "defaultValue": "Linux"
+        },
+        "numberCpuCores": {
+            "type": "string",
+            "defaultValue": "4"
+        },
+        "memory": {
+            "type": "string",
+            "defaultValue": "8"
+        },
+        "restartPolicy": {
+            "type": "string",
+            "allowedValues": [
+                "OnFailure",
+                "Always",
+                "Never"
+            ],
+            "defaultValue": "Always"
+        },
+        "valheimServerName": {
+            "type": "string"
+        },
+        "valheimWorldName": {
+            "type": "string"
+        },
+        "valheimServerPassword": {
+            "type": "securestring"
+        },
+        "ports": {
+            "type": "array",
+            "defaultValue": [
+                {
+                    "port": "2456",
+                    "protocol": "UDP"
+                },
+                {
+                    "port": "2457",
+                    "protocol": "UDP"
+                },
+                {
+                    "port": "2458",
+                    "protocol": "UDP"
+                }
+            ]
+        },
+        "dnsNameLabel": {
+            "type": "string"
+        },
+        "storageAccountType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS",
+            "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS"
+            ],
+            "metadata": {
+                "description": "Storage account type"
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "defaultValue": "[concat('stg', uniqueString(resourceGroup().id))]"
+        },
+        "storageFileShareName": {
+            "type": "string",
+            "defaultValue": "config"
+        },
+        "restartCron": {
+            "type": "string",
+            "defaultValue": "0 3 * * *"
+        },
+        "updateCron": {
+            "type": "string",
+            "defaultValue": "*/15 * * * *"
+        }
+    },
+    "variables": {
+        "fileShareName": "[concat('/default/', parameters('storageFileShareName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[parameters('storageAccountName')]",
+            "apiVersion": "2019-06-01",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "[parameters('storageAccountType')]"
+            },
+            "properties": {
+                "accessTier": "Hot"
+            },
+            "kind": "StorageV2",
+            "resources": [
+                {
+                    "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+                    "apiVersion": "2019-06-01",
+                    "name": "[concat(parameters('storageAccountName'), variables('fileShareName'))]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+                    ]
+                }
+            ]
+        },
+        {
+            "location": "[parameters('location')]",
+            "name": "[parameters('containerName')]",
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2018-10-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ],
+            "properties": {
+                "containers": [
+                    {
+                        "name": "[parameters('containerName')]",
+                        "properties": {
+                            "image": "[parameters('imageName')]",
+                            "resources": {
+                                "requests": {
+                                    "cpu": "[int(parameters('numberCpuCores'))]",
+                                    "memoryInGB": "[float(parameters('memory'))]"
+                                }
+                            },
+                            "environmentVariables": [
+                                {
+                                    "name": "SERVER_PASS",
+                                    "secureValue": "[parameters('valheimServerPassword')]"
+                                },
+                                {
+                                    "name": "SERVER_NAME",
+                                    "value": "[parameters('valheimServerName')]"
+                                },
+                                {
+                                    "name": "WORLD_NAME",
+                                    "value": "[parameters('valheimWorldName')]"
+                                },
+                                {
+                                    "name": "RESTART_CRON",
+                                    "value": "[parameters('restartCron')"
+                                },
+                                {
+                                    "name": "UPDATE_CRON",
+                                    "value": "[parameters('updateCron')"
+                                }
+                            ],
+                            "ports": "[parameters('ports')]",
+                            "volumeMounts": [
+                                {
+                                    "mountPath": "/config",
+                                    "name": "config",
+                                    "readOnly": false
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "restartPolicy": "[parameters('restartPolicy')]",
+                "osType": "[parameters('osType')]",
+                "ipAddress": {
+                    "type": "Public",
+                    "ports": "[parameters('ports')]",
+                    "dnsNameLabel": "[parameters('dnsNameLabel')]"
+                },
+                "volumes": [
+                    {
+                        "name": "config",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[parameters('storageFileShareName')]",
+                            "storageAccountName": "[parameters('storageAccountName')]",
+                            "storageAccountKey": "[listKeys(parameters('storageAccountName'), '2017-10-01').keys[0].value]"
+                        }
+                    }
+                ]
+            },
+            "tags": {}
+        }
+    ],
+    "outputs": {
+        "containerUrl": {
+            "type": "string",
+            "value": "[concat(parameters('dnsNameLabel'), '.', parameters('location'), '.azurecontainer.io')]"
+        }
+    }
+}
