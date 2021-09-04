@@ -114,6 +114,10 @@
         "updateCron": {
             "type": "string",
             "defaultValue": "*/15 * * * *"
+        },
+        "valheimPlus:": {
+            "type": "bool",
+            "defaultValue": false
         }
     },
     "variables": {
@@ -183,6 +187,10 @@
                                 {
                                     "name": "UPDATE_CRON",
                                     "value": "[parameters('updateCron')"
+                                },
+                                {
+                                    "name": "VALHEIM_PLUS",
+                                    "value": "[parameters('valheimPlus')"
                                 }
                             ],
                             "ports": "[parameters('ports')]",
